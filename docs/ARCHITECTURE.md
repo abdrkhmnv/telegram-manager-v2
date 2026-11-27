@@ -56,7 +56,13 @@ tushiradi va teskari tartibda to'xtatadi:
    alohida task'da boshlaydi (tarmoq xatolarida aiogram o'zi backoff qiladi).
 4. `HeartbeatComponent` (`app/health.py`) — har 30 soniyada `storage/health.json` ga
    komponentlar holatini yozadi; `main.py check --app` (Docker healthcheck) uni o'qiydi.
-5. *(6-bosqich)* `SchedulerComponent` — lease asosidagi rejalashtiruvchi.
+5. `ForwarderComponent` (`services/forwarding_service.py`) — Telethon `NewMessage` va `Album`
+   hodisalarini tinglaydi, faol qoidalarni xotirada saqlaydi (o'zgarishda va har 60 s da
+   qayta yuklanadi), har bir yetkazishni `forward_logs` da idempotent band qiladi.
+6. `SchedulerComponent` (`services/scheduling_service.py`) — har 15 s da vaqti kelgan
+   vazifalarni lease bilan egallaydi va bajaradi.
+
+Haqiqiy tartib: baza → userbot → forwarder → rejalashtiruvchi → Control Bot → heartbeat.
 
 ## Control Bot ichki tuzilishi
 
@@ -78,6 +84,17 @@ callback_query ─► CallbackGuardMiddleware ─► NavCallback.filter() ─►
 Biror komponent ishga tushmasa, oldin ishga tushganlari to'xtatiladi. SIGINT/SIGTERM
 kelganda barcha komponentlar `stop_timeout` (30 s) ichida to'xtatiladi; osilib qolgan
 komponent boshqalarini to'xtatishga xalaqit bermaydi.
+
+## Panel oqimlari
+
+- `bot/picker.py` — qayta ishlatiladigan ko'p tanlovli chat tanlash; tanlov FSM'da,
+  "Davom etish" joriy holat uchun ro'yxatdan o'tgan davom handlerini chaqiradi.
+- `bot/collect.py` — matn va media (albom) yig'ish: Bot API'dan yuklab olish, tekshirish,
+  `MediaService` orqali saqlash, holat xabarini tahrirlash.
+- `bot/middleware/user_lock.py` — albom qismlari bir vaqtda kelganda FSM'ga yozish
+  to'qnashmasligi uchun bir foydalanuvchi xabarlari ketma-ket ishlanadi.
+- Handlerlar faqat `Services` (`bot/context.py`) orqali ishlaydi — testlarda soxta
+  servislar bilan haqiqiy Dispatcher sinovdan o'tkaziladi.
 
 ## Rejalashtirish: PostgreSQL'dagi lease
 
@@ -102,6 +119,11 @@ RETURNING *;
   `(qoida, manba chat, xabar, manzil)` kaliti bilan. Lease takrorlansa ham
   bir xabar ikki marta yuborilmaydi.
 - **Faqat egasi bo'shatadi:** `release()` faqat `locked_by` mos kelsa ishlaydi.
+- **Retry:** xato bo'lsa `next_run_at` o'zgarmaydi, `locked_until` keyingi urinish
+  vaqtiga qo'yiladi (2, 4 daqiqa ...). Xuddi shu slot qayta bajarilganda muvaffaqiyatli
+  manzillar o'tkazib yuboriladi, faqat xato bo'lganlariga qayta yuboriladi.
+- **O'tkazib yuborilgan slotlar:** ilova o'chiq bo'lgan paytdagi kunlik/haftalik slotlar
+  to'planib yuborilmaydi — bitta bajarilishdan so'ng keyingi slot hozirgi vaqtdan hisoblanadi.
 
 Bu xatti-harakat integratsion testlarda (parallel ishchilar, lease tugashi) tekshiriladi.
 

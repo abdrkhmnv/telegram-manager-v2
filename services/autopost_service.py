@@ -174,6 +174,7 @@ class AutopostService:
             task = await repo.get(task_id)
             if task is None:
                 return False
+            upcoming: datetime | None
             if task.kind is AutopostKind.SCHEDULED and task.recurrence is Recurrence.ONCE:
                 upcoming = max(task.run_at or now, now)
             else:

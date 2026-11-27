@@ -164,20 +164,14 @@ class StatisticsService:
         async with self._database.session() as session:
             all_time = await _totals(session, None)
             today = await _totals(session, today_start)
-            task_counts = dict(
-                (
-                    await session.execute(
-                        select(AutopostTask.status, func.count()).group_by(AutopostTask.status)
-                    )
-                ).all()
+            task_rows = await session.execute(
+                select(AutopostTask.status, func.count()).group_by(AutopostTask.status)
             )
-            rule_counts = dict(
-                (
-                    await session.execute(
-                        select(ForwardRule.status, func.count()).group_by(ForwardRule.status)
-                    )
-                ).all()
+            task_counts: dict[TaskStatus, int] = {s: int(n) for s, n in task_rows.all()}
+            rule_rows = await session.execute(
+                select(ForwardRule.status, func.count()).group_by(ForwardRule.status)
             )
+            rule_counts: dict[RuleStatus, int] = {s: int(n) for s, n in rule_rows.all()}
             daily = await self._daily(session, week_start)
         return Statistics(
             all_time=all_time,

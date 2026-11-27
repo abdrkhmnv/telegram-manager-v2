@@ -25,6 +25,10 @@ PostgreSQL 14+ (CI va Docker'da 16). SQLAlchemy 2.x async + asyncpg, migratsiyal
 | `activity_logs` | Panel harakatlari auditi | `action`, `created_at` indekslari |
 | `bot_fsm_states` | Control Bot suhbat holati (aiogram FSM), restart'dan keyin saqlanadi | PK `key` |
 
+Migratsiyalar: `0001` — boshlang'ich sxema, `0002` — `bot_fsm_states`, `0003` —
+`message_logs.preview` (tarix uchun qisqa matn) va `forward_rules.header_text/footer_text`
+(copy rejimida sarlavha/izoh).
+
 Statistika (7-bosqich) faqat shu jadvallardagi haqiqiy yozuvlardan hisoblanadi.
 
 ### Konvensiyalar

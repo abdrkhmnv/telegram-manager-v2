@@ -5,10 +5,8 @@ Haqiqiy amallarni (yuborish, forward, autopost) akkaunt Telethon (MTProto) orqal
 Control Bot esa faqat boshqaruv paneli vazifasini o'taydi. Panelga faqat
 `OWNER_TELEGRAM_ID` da ko'rsatilgan egasi kira oladi. Barcha interfeys o'zbek tilida (lotin).
 
-> **Holat:** 1-bosqich (Foundation) va 2-bosqich (Telegram yadrosi) tayyor: Telethon
-> userbot, Control Bot, egasi avtorizatsiyasi, o'zbekcha bosh menyu va tizim holati.
-> Chatlar, xabar yuborish, forwarder, autopost va boshqa bo'limlar keyingi bosqichlarda.
-> To'liq reja: [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Holat:** 1–8-bosqichlarning barchasi tayyor va CI'da sinovdan o'tgan. Haqiqiy Telegram
+> kalitlari bilan qo'lda qabul testi hali o'tkazilmagan. Reja: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Imkoniyatlar
 
@@ -26,7 +24,11 @@ Control Bot esa faqat boshqaruv paneli vazifasini o'taydi. Panelga faqat
 | Control Bot: egasi tekshiruvi, bosh menyu, /start, /help, tizim holati | ✅ tayyor |
 | Takroriy tugma bosishdan himoya, eskirgan tugmalarni xavfsiz qayta ishlash | ✅ tayyor |
 | Bot holatini (FSM) PostgreSQL'da saqlash | ✅ tayyor |
-| Chatlar, xabar yuborish, forwarder, autopost, media, statistika | ⏳ 3–7-bosqichlar |
+| Chatlar: sinxronlash, toifalar, qidiruv, sahifalash | ✅ tayyor |
+| Xabar yuborish: matn/media/albom, oldindan ko'rish, tasdiqlash, tarix, tahrir/o'chirish | ✅ tayyor |
+| Forwarder: native va copy, filtrlar, takrorni aniqlash, idempotentlik, retry | ✅ tayyor |
+| Autopost: bir martalik/kunlik/haftalik va tasodifiy interval (faol soatlar, navbat) | ✅ tayyor |
+| Media Manager va bazaga asoslangan statistika | ✅ tayyor |
 
 ## Arxitektura (qisqacha)
 
@@ -34,8 +36,8 @@ Control Bot esa faqat boshqaruv paneli vazifasini o'taydi. Panelga faqat
 main.py            -> buyruqlar: run | login | check [--app]
 app/               -> config, bootstrap, lifecycle, permissions, health
 core/              -> userbot (Telethon), control_bot (aiogram), login, FloodWait
-bot/               -> panel: callbacks, klaviaturalar, ekranlar, handlerlar, middleware
-services/          -> servislar (tizim holati)
+bot/               -> panel: callbacks, klaviaturalar, ekranlar, handlerlar, middleware, picker
+services/          -> chatlar, xabarlar, media, forwarder, autopost, rejalashtiruvchi, statistika
 database/          -> base, models, repositories, migrations, connection
 utils/             -> logger, time_utils, validators, helpers
 tests/unit         -> bazasiz testlar

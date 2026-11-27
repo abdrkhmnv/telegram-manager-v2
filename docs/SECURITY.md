@@ -70,3 +70,22 @@ Avval kalitni yuqoridagidek **almashtiring**, keyin tarixni tozalang
 ## Xavfsizlik muammosi haqida xabar berish
 
 Repozitoriy egasiga shaxsiy xabar orqali yozing; ochiq issue'da maxfiy ma'lumot qoldirmang.
+
+## 8-bosqich tahlili
+
+| Tekshirilgan joy | Natija |
+|---|---|
+| Avtorizatsiya | Har bir update outer middleware'da tekshiriladi (`OwnerOnlyMiddleware`); testlar begona xabar/callback va guruhdagi xabarlar hech qanday so'rov yubormasligini tasdiqlaydi |
+| Callback ma'lumoti | Faqat bazadagi ichki ID va qisqa kodlar; har biri ≤ 64 bayt; buzilgan yoki eskirgan ma'lumot bosh menyuga qaytaradi; Telegram amali hech qachon to'g'ridan-to'g'ri callback'dan bajarilmaydi |
+| Takroriy bajarish | Double tap e'tiborsiz; foydalanuvchi callback'lari ketma-ket; yuborish tasdiqlangach FSM darhol tozalanadi — qayta bosish ikkinchi yuborishga olib kelmaydi |
+| Xavfli amallar | O'chirish, bekor qilish va yuborish — tasdiqlash oynasi bilan |
+| Kirish ma'lumotlari | Chat ID, username, sana/vaqt, interval, kalit so'zlar, matn uzunligi tekshiriladi; taklif havolalari rad etiladi |
+| Fayllar | MIME va hajm tekshiruvi (Bot API chegarasi 20 MB), bajariladigan fayllar rad etiladi, nom diskda ishlatilmaydi (SHA-256 asosida), barcha yo'llar `safe_storage_path` orqali, fayl ruxsati `600`, vaqtinchalik fayllar har doim o'chiriladi |
+| SQL | Faqat ORM/parametrlangan so'rovlar; `LIKE` ekranlanadi; array parametrlari bind orqali |
+| Telegram qoidalari | Yuborishlar ketma-ket va kechikish bilan; FloodWait hurmat qilinadi, uzoq kutish talab qilinsa amal to'xtatiladi; himoyalangan kontent o'tkaziladi; yuborish faqat akkaunt dialoglaridagi chatlarga |
+| Halqalar | Forwarder o'zi yuborgan xabarlarni qayta yo'naltirmaydi; manba va manzil bir xil bo'lolmaydi |
+| Resurslar | Navbatlar cheklangan (forward task'lar ≤ 200, lock lug'atlari ≤ 1000), event loop'ni to'xtatuvchi katta fayl xeshlash thread'da |
+| Loglar | Xabar matni loglarga yozilmaydi (faqat ID va xato turi); tarix uchun bazada 100 belgilik qisqa matn saqlanadi |
+
+Qolgan xavflar: server (VPS) ga kirish huquqi bor odam sessiya fayli orqali akkauntga
+kira oladi — serverni himoyalang (SSH kalit, yangilanishlar, faqat kerakli portlar).

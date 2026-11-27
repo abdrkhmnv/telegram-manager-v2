@@ -1,63 +1,65 @@
 # Yo'l xaritasi
 
 Har bir bosqich: mavjud kodni ko'rib chiqish → vazifalar → kod → lint → testlar →
-xavfsizlik tahlili → commit → hujjatlar → hisobot. Avval kichik, to'liq ishlaydigan qism.
+xavfsizlik tahlili → commit → hujjatlar → hisobot.
 
 ## 1-bosqich — Foundation ✅
 
-- [x] Loyiha tuzilmasi, `pyproject.toml`, qat'iy versiyalar
-- [x] Konfiguratsiya (Pydantic Settings, 3 guruh, maxfiy qiymatlar `SecretStr`)
-- [x] Tuzilmali JSON loglar, maxfiy qiymatlarni yashirish, fayl rotatsiyasi
-- [x] PostgreSQL async ulanish, pul, timeout'lar, backoff bilan kutish
-- [x] 18 ta jadval: modellar, `0001` migratsiyasi, nomlash konvensiyasi
-- [x] Repozitoriylar: sozlamalar, chatlar, forward loglari, autopost (lease), occurrence, audit
-- [x] Vaqt hisoblari (Asia/Tashkent, kunlik/haftalik/tasodifiy, faol soatlar)
-- [x] Lifecycle menejeri, `main.py run|check`, startup'da migratsiya tekshiruvi
-- [x] Docker, Docker Compose (db → migrate → app), healthcheck
-- [x] GitHub Actions: ruff, mypy, alembic up/down/check, pytest (3.11–3.13), docker build
-- [x] Zaxira/tiklash skriptlari, o'zbekcha hujjatlar
+Konfiguratsiya, JSON loglar (maxfiy qiymatlarni yashirish), PostgreSQL async, 18 ta jadval,
+Alembic, lease asosidagi vazifa infratuzilmasi, Docker/Compose, CI, zaxira skriptlari.
 
 ## 2-bosqich — Telegram yadrosi ✅
 
-- [x] Telethon klienti: sessiya (`700`/`600`), qayta ulanish (watchdog + backoff), FloodWait
-- [x] Birinchi kirish oqimi `python main.py login` (telefon, kod, 2FA) — hech narsa loglanmaydi
-- [x] Control Bot (aiogram 3), `OWNER_TELEGRAM_ID` outer middleware — har bir update'da
-- [x] `/start`, `/help`, bosh menyu (12 bo'lim), orqaga/bosh sahifa navigatsiyasi
-- [x] Callback ma'lumotlari: 64 bayt chegarasi, eskirgan callback'larni xavfsiz qayta ishlash
-- [x] Takroriy callback'dan himoya, panel xabarini tahrirlash (chatni to'ldirmaslik)
-- [x] Bot FSM holati PostgreSQL'da (`bot_fsm_states`, `0002` migratsiyasi)
-- [x] Healthcheck: heartbeat fayli (`check --app`), "Tizim holati" ekrani
-- [x] `docs/USER_GUIDE.md` — panel bo'yicha qo'llanma
-- [ ] Xavfli amallar uchun tasdiqlash oynasi — birinchi xavfli amal bilan (4-bosqich)
+Telethon userbot (sessiya 600/700, watchdog, FloodWait), `main.py login`, Control Bot
+(aiogram 3), har bir update'da egasi tekshiruvi, bosh menyu, callback himoyasi,
+FSM holati PostgreSQL'da, heartbeat va `check --app`.
 
-## 3-bosqich — Chatlar
+## 3-bosqich — Chatlar ✅
 
-- [ ] Dialoglarni sinxronlash (`ChatRepository.upsert_many`), kira olinmaydiganlarni belgilash
-- [ ] Toifalar, qidiruv, sahifalash, saqlangan chatlar
+- [x] Dialoglarni sinxronlash (marked ID, tark etilgan/taqiqlangan chatlar o'tkaziladi)
+- [x] Yo'qolgan chatlarni "kira olinmaydi" deb belgilash
+- [x] Chatlar/guruhlar/kanallar ro'yxati, sahifalash, saqlanganlar
+- [x] Toifalar (yaratish, belgilash, o'chirish), qidiruv
 
-## 4-bosqich — Xabar yuborish
+## 4-bosqich — Xabar yuborish ✅
 
-- [ ] Matn/formatlangan matn, rasm, video, hujjat, audio, ovozli xabar
-- [ ] Bir nechta manzil, oldindan ko'rish, tasdiqlash, tahrirlash/o'chirish, tarix
+- [x] Qayta ishlatiladigan chat tanlash komponenti (50 tagacha)
+- [x] Matn, formatlash, rasm, video, GIF, hujjat, audio, ovozli, albom
+- [x] MIME/hajm tekshiruvi, SHA-256 dedup, oldindan ko'rish, tasdiqlash, progress
+- [x] Tarix, tahrirlash, o'chirish (tasdiqlash bilan)
 
-## 5-bosqich — Forwarder
+## 5-bosqich — Forwarder ✅
 
-- [ ] Native va copy rejimlari, albomlar, filtrlar (kalit so'z, media turi)
-- [ ] Idempotentlik (`forward_logs`), takroriy kontentni aniqlash, cheklangan retry
-- [ ] Himoyalangan/kira olinmaydigan manbalarni o'tkazib yuborish
+- [x] Native va copy rejimlari, albomlar, sarlavha/izoh (copy)
+- [x] Kalit so'z va media turi filtrlari, takroriy kontentni aniqlash
+- [x] Idempotentlik (`forward_logs`), cheklangan retry, himoyalangan kontentni o'tkazish
+- [x] Halqa himoyasi, pauza/davom/o'chirib qo'yish, loglar
 
-## 6-bosqich — Autopost
+## 6-bosqich — Autopost ✅
 
-- [ ] Rejalashtirilgan (bir martalik, kunlik, haftalik) va tasodifiy interval
-- [ ] Lease asosidagi rejalashtiruvchi, restart'dan keyin tiklanish, `task_logs`
+- [x] Bir martalik, kunlik, haftalik postlar
+- [x] Tasodifiy intervalli post: oraliq, faol soatlar, kontent navbati, takrordan himoya
+- [x] Lease rejalashtiruvchi: takroriy bajarilish yo'q, faqat xato manzillarga retry,
+      restart'dan keyin tiklanish, `task_logs`
+- [x] Pauza/davom/bekor qilish/o'chirish, kontentni almashtirish
 
-## 7-bosqich — Media va statistika
+## 7-bosqich — Media va statistika ✅
 
-- [ ] Media menejeri (MIME/hajm tekshiruvi, SHA-256 dedup, vaqtinchalik fayllarni tozalash)
-- [ ] Statistika — faqat bazadagi haqiqiy yozuvlardan (kunlik/haftalik)
+- [x] Media menejeri: ro'yxat, ko'rish, yuklash, foydalanilayotganini himoyalab o'chirish
+- [x] Statistika faqat bazadagi yozuvlardan: jami, bugun, 7 kun
 
-## 8-bosqich — Mustahkamlash
+## 8-bosqich — Mustahkamlash ✅
 
-- [ ] Xavfsizlik tahlili, integratsion va yuklama testlari, deploy tekshiruvi
+- [x] Xavfsizlik tahlili (`docs/SECURITY.md` → *8-bosqich tahlili*)
+- [x] Servislar uchun integratsion testlar (haqiqiy PostgreSQL + soxta Telethon klienti)
+- [x] Panel oqimlari uchun end-to-end testlar (haqiqiy Dispatcher, tarmoqsiz)
+- [x] Kichik yuklama testi (3000 chat upsert, 300 vazifani egallash)
+- [x] Hujjatlar
 
-> Quvvat (nechta chat/xabar) haqidagi raqamlar faqat yuklama testlaridan keyin beriladi.
+## Keyingi qadamlar
+
+- Haqiqiy Telegram akkaunti bilan qo'lda qabul testi va natijalar asosida tuzatishlar.
+- Bot API 20 MB cheklovidan katta fayllar uchun boshqa yo'l (masalan, userbot orqali).
+- Statistikani CSV eksport qilish.
+
+> Quvvat (nechta chat/xabar) haqidagi raqamlar faqat haqiqiy yuklama testlaridan keyin beriladi.

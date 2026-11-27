@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -103,7 +104,7 @@ async def send_preview(
     if len(media) == 1:
         item = media[0]
         fid, kind = item["fid"], MediaType(item["t"])
-        senders = {
+        senders: dict[MediaType, Callable[..., Awaitable[Any]]] = {
             MediaType.PHOTO: bot.send_photo,
             MediaType.VIDEO: bot.send_video,
             MediaType.ANIMATION: bot.send_animation,
@@ -137,7 +138,7 @@ async def send_stored_preview(
         return
     if len(items) == 1:
         path, kind = items[0]
-        senders = {
+        senders: dict[MediaType, Callable[..., Awaitable[Any]]] = {
             MediaType.PHOTO: bot.send_photo,
             MediaType.VIDEO: bot.send_video,
             MediaType.ANIMATION: bot.send_animation,
