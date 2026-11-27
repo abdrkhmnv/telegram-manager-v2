@@ -1,0 +1,35 @@
+# --- Maxfiy ma'lumotlar: HECH QACHON commit qilinmaydi ---
+.env
+.env.*
+!.env.example
+*.session
+*.session-journal
+storage/sessions/
+
+# --- Ish vaqtida yaratiladigan fayllar ---
+logs/*
+!logs/.gitkeep
+storage/*
+!storage/.gitkeep
+backups/
+*.sql.gz
+*.dump
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Muharrir / OS ---
+.idea/
+.vscode/
+.DS_Store

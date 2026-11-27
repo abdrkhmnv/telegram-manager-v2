@@ -1,0 +1,59 @@
+# Ishga tushirish:
+#   cp .env.example .env   # qiymatlarni to'ldiring
+#   docker compose up -d --build
+#
+# Ketma-ketlik: db (healthy) -> migrate (alembic upgrade head) -> app
+
+name: telegram-manager-v2
+
+x-app-env: &app-env
+  env_file: .env
+  environment:
+    # Konteyner ichida PostgreSQL xosti "db". Parol va foydalanuvchi .env dan olinadi.
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?POSTGRES_USER kerak}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD kerak}@db:5432/${POSTGRES_DB:?POSTGRES_DB kerak}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER kerak}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD kerak}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB kerak}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Port tashqariga ochilmaydi. Mahalliy ulanish kerak bo'lsa:
+    # ports: ["127.0.0.1:5432:5432"]
+
+  migrate:
+    build: .
+    <<: *app-env
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    <<: *app-env
+    restart: unless-stopped
+    volumes:
+      - app_storage:/app/storage
+      - app_logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 40s
+
+volumes:
+  pgdata:
+  app_storage:
+  app_logs:
