@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from datetime import datetime, time
 from pathlib import Path
 
 TELEGRAM_MESSAGE_LIMIT = 4096
@@ -121,3 +122,54 @@ def safe_storage_path(base_dir: Path, relative: str | Path) -> Path:
     if target == base or not target.is_relative_to(base):
         raise InputValidationError("Fayl yo'li ruxsat etilgan saqlash katalogidan tashqarida")
     return target
+
+
+_TIME_RE = re.compile(r"^\s*([01]?\d|2[0-3])[:.]([0-5]\d)\s*$")
+_DATETIME_RE = re.compile(
+    r"^\s*(\d{1,2})[./-](\d{1,2})[./-](\d{4})\s+([01]?\d|2[0-3])[:.]([0-5]\d)\s*$"
+)
+_RANGE_RE = re.compile(r"^\s*(\d{1,5})\s*(?:[-–—]\s*(\d{1,5}))?\s*$")
+
+
+def parse_time(value: str) -> time:
+    """``"9:30"`` / ``"09.30"`` -> ``time(9, 30)``."""
+    match = _TIME_RE.match(value)
+    if not match:
+        raise InputValidationError("Vaqt formati: SS:DD (masalan 09:30)")
+    return time(int(match.group(1)), int(match.group(2)))
+
+
+def parse_local_datetime(value: str) -> datetime:
+    """``"27.11.2026 21:30"`` -> naive mahalliy ``datetime``."""
+    match = _DATETIME_RE.match(value)
+    if not match:
+        raise InputValidationError("Format: KK.OO.YYYY SS:DD (masalan 28.11.2026 09:30)")
+    day, month, year, hour, minute = (int(g) for g in match.groups())
+    try:
+        return datetime(year, month, day, hour, minute)  # noqa: DTZ001 — mahalliy vaqt
+    except ValueError as exc:
+        raise InputValidationError("Bunday sana mavjud emas") from exc
+
+
+def parse_minutes_range(value: str) -> tuple[int, int]:
+    """``"30-90"`` (daqiqa) -> ``(1800, 5400)`` soniya; ``"60"`` -> ``(3600, 3600)``."""
+    match = _RANGE_RE.match(value)
+    if not match:
+        raise InputValidationError("Format: MIN-MAX daqiqa (masalan 30-90)")
+    low = int(match.group(1))
+    high = int(match.group(2) or low)
+    return validate_interval(low * 60, high * 60)
+
+
+def parse_hours_range(value: str) -> tuple[time | None, time | None]:
+    """``"09:00-22:00"`` -> oyna; ``"0"`` -> kun bo'yi (``None, None``)."""
+    text = value.strip()
+    if text in {"0", "-", ""}:
+        return None, None
+    parts = re.split(r"\s*[-–—]\s*", text)
+    if len(parts) != 2:
+        raise InputValidationError("Format: SS:DD-SS:DD (masalan 09:00-22:00) yoki 0")
+    start, end = parse_time(parts[0]), parse_time(parts[1])
+    if start == end:
+        return None, None
+    return start, end

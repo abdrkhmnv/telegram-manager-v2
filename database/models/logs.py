@@ -26,6 +26,7 @@ class MessageLog(TimestampMixin, Base):
     message_id: Mapped[int | None] = mapped_column(BigInteger)
     status: Mapped[DeliveryStatus] = mapped_column(str_enum(DeliveryStatus, "delivery_status"))
     error: Mapped[str | None] = mapped_column(String(1000))
+    preview: Mapped[str | None] = mapped_column(String(100))
 
 
 class TaskLog(Base):

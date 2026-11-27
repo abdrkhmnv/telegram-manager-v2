@@ -95,7 +95,7 @@ async def test_chat_search_pagination_and_like_escaping(session: AsyncSession) -
     assert {c.telegram_id for c in await repo.search("python")} == {1, 2}
     assert [c.telegram_id for c in await repo.search("@python_dev")] == [2]
     assert [c.telegram_id for c in await repo.search("100%")] == [3]
-    assert await repo.count(chat_type=ChatType.CHANNEL) == 2
+    assert await repo.count(chat_types=(ChatType.CHANNEL,)) == 2
     first = await repo.search(limit=2, offset=0)
     second = await repo.search(limit=2, offset=2)
     assert len(first) == 2 and len(second) == 2

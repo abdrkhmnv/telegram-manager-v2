@@ -10,6 +10,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Table,
+    Text,
     UniqueConstraint,
     false,
     text,
@@ -85,6 +86,9 @@ class ForwardRule(TimestampMixin, Base):
     duplicate_detection: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false()
     )
+    # Faqat copy rejimida: yuborishdan oldin matn boshiga/oxiriga qo'shiladi.
+    header_text: Mapped[str | None] = mapped_column(Text)
+    footer_text: Mapped[str | None] = mapped_column(Text)
 
     sources: Mapped[list[Chat]] = relationship(secondary=forward_rule_sources, lazy="raise")
     destinations: Mapped[list[Chat]] = relationship(

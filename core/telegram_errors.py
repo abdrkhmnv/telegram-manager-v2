@@ -52,3 +52,37 @@ async def with_flood_wait(
                 extra={"operation": operation, "wait": wait, "attempt": attempt},
             )
             await asyncio.sleep(wait + 1)
+
+
+_ERROR_MESSAGES: dict[str, str] = {
+    "ChatWriteForbiddenError": "Bu chatga yozish huquqi yo'q",
+    "ChatAdminRequiredError": "Admin huquqi kerak",
+    "ChannelPrivateError": "Kanal/guruh yopiq yoki akkaunt chiqarilgan",
+    "UserIsBlockedError": "Foydalanuvchi akkauntni bloklagan",
+    "UserBannedInChannelError": "Akkauntga bu chatda yozish taqiqlangan",
+    "ChatForwardsRestrictedError": "Chat himoyalangan: forward/nusxalash taqiqlangan",
+    "MessageIdInvalidError": "Xabar topilmadi",
+    "MessageNotModifiedError": "Matn o'zgarmagan",
+    "MessageEditTimeExpiredError": "Tahrirlash muddati o'tgan",
+    "MessageAuthorRequiredError": "Faqat o'zingiz yuborgan xabarni o'zgartirish mumkin",
+    "SlowModeWaitError": "Chatda sekin rejim yoqilgan",
+    "MediaCaptionTooLongError": "Izoh juda uzun",
+    "MessageTooLongError": "Xabar juda uzun",
+    "PeerIdInvalidError": "Chat topilmadi — chatlar ro'yxatini yangilang",
+}
+
+
+def describe_error(exc: BaseException) -> str:
+    """Telegram/tizim xatosini foydalanuvchiga tushunarli qisqa matnga aylantiradi."""
+    name = type(exc).__name__
+    if isinstance(exc, FloodWaitError):
+        return f"Telegram cheklovi: {int(getattr(exc, 'seconds', 0))} soniya kutish kerak"
+    if name in _ERROR_MESSAGES:
+        return _ERROR_MESSAGES[name]
+    if isinstance(exc, ValueError) and "entity" in str(exc).lower():
+        return "Chat topilmadi — chatlar ro'yxatini yangilang"
+    if isinstance(exc, FileNotFoundError):
+        return "Media fayl diskda topilmadi"
+    if isinstance(exc, ConnectionError | TimeoutError | OSError):
+        return "Tarmoq xatosi, keyinroq qayta urinib ko'ring"
+    return name

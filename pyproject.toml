@@ -1,6 +1,6 @@
 [project]
 name = "telegram-manager-v2"
-version = "0.2.0"
+version = "1.0.0"
 description = "Bitta shaxsiy Telegram akkauntini Control Bot orqali boshqarish tizimi"
 readme = "README.md"
 requires-python = ">=3.11"

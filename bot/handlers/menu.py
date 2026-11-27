@@ -2,24 +2,25 @@
 
 from __future__ import annotations
 
-from zoneinfo import ZoneInfo
-
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot import screens, texts
 from bot.callbacks import NavCallback, Section
+from bot.context import Services
 from bot.rendering import show
-from services.status_service import StatusService
 
 
-async def cmd_start(message: Message) -> None:
+async def cmd_start(message: Message, state: FSMContext) -> None:
+    await state.clear()
     screen = screens.main_menu()
     await message.answer(screen.text, reply_markup=screen.markup)
 
 
-async def cmd_help(message: Message) -> None:
+async def cmd_help(message: Message, state: FSMContext) -> None:
+    await state.clear()
     screen = screens.help_screen()
     await message.answer(screen.text, reply_markup=screen.markup)
 
@@ -27,14 +28,15 @@ async def cmd_help(message: Message) -> None:
 async def on_navigate(
     callback: CallbackQuery,
     callback_data: NavCallback,
-    status_service: StatusService,
-    timezone: ZoneInfo,
+    svc: Services,
+    state: FSMContext,
 ) -> None:
     section = callback_data.section
+    await state.clear()
     if section is Section.STATUS:
         await callback.answer("Tekshirilmoqda…")
-        status = await status_service.collect()
-        await show(callback, screens.status_screen(status, timezone))
+        status = await svc.status.collect()
+        await show(callback, screens.status_screen(status, svc.timezone))
         return
     factory = screens.STATIC_SCREENS.get(section)
     await show(callback, factory() if factory is not None else screens.coming_soon(section))

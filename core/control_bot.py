@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import Callable
-from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -15,9 +14,9 @@ from aiogram.fsm.storage.base import BaseStorage
 from aiogram.types import BotCommand, BotCommandScopeChat
 
 from app.config import TelegramSettings
+from bot.context import Services
 from bot.dispatcher import build_dispatcher
 from core.exceptions import StartupError
-from services.status_service import StatusService
 from utils.logger import get_logger, register_secret
 
 logger = get_logger(__name__)
@@ -46,14 +45,12 @@ class ControlBotComponent:
         settings: TelegramSettings,
         *,
         storage: BaseStorage,
-        status_service: StatusService,
-        timezone: ZoneInfo,
+        services: Services,
         bot_factory: Callable[[TelegramSettings], Bot] = build_bot,
     ) -> None:
         self._settings = settings
         self._storage = storage
-        self._status_service = status_service
-        self._timezone = timezone
+        self._services = services
         self._bot_factory = bot_factory
         self._bot: Bot | None = None
         self._dispatcher: Dispatcher | None = None
@@ -77,8 +74,7 @@ class ControlBotComponent:
         dispatcher = build_dispatcher(
             owner_id=self._settings.owner_telegram_id,
             storage=self._storage,
-            status_service=self._status_service,
-            timezone=self._timezone,
+            services=self._services,
         )
         self._dispatcher = dispatcher
         self._polling = asyncio.create_task(

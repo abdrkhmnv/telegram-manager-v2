@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import BigInteger, ColumnElement, all_, bindparam, func, or_, select, update
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,7 +45,7 @@ class ChatRepository:
             {
                 "telegram_id": s.telegram_id,
                 "chat_type": s.chat_type,
-                "title": s.title[:255],
+                "title": (s.title or "—")[:255],
                 "username": s.username,
                 "members_count": s.members_count,
                 "is_accessible": True,
@@ -70,6 +71,26 @@ class ChatRepository:
             await self._session.execute(statement)
         return len(rows)
 
+    async def mark_inaccessible_except(self, telegram_ids: Collection[int]) -> int:
+        """Oxirgi sinxronlashda ko'rinmagan chatlarni "kira olinmaydi" deb belgilaydi."""
+        ids = bindparam("keep_ids", list(telegram_ids), type_=ARRAY(BigInteger))
+        result = await self._session.execute(
+            update(Chat)
+            .where(Chat.is_accessible.is_(True), Chat.telegram_id != all_(ids))
+            .values(is_accessible=False)
+            .execution_options(synchronize_session=False)
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
+
+    async def get(self, chat_id: int) -> Chat | None:
+        return await self._session.get(Chat, chat_id)
+
+    async def get_many(self, chat_ids: Collection[int]) -> list[Chat]:
+        if not chat_ids:
+            return []
+        statement = select(Chat).where(Chat.id.in_(list(chat_ids))).order_by(Chat.title, Chat.id)
+        return list((await self._session.scalars(statement)).all())
+
     async def get_by_telegram_id(self, telegram_id: int) -> Chat | None:
         return await self._session.scalar(select(Chat).where(Chat.telegram_id == telegram_id))
 
@@ -83,7 +104,10 @@ class ChatRepository:
 
     @staticmethod
     def _filters(
-        query: str | None, chat_type: ChatType | None, saved_only: bool
+        query: str | None,
+        chat_types: Sequence[ChatType] | None,
+        saved_only: bool,
+        accessible_only: bool,
     ) -> list[ColumnElement[bool]]:
         conditions: list[ColumnElement[bool]] = []
         if query and query.strip():
@@ -94,18 +118,21 @@ class ChatRepository:
                     Chat.username.ilike(pattern, escape="\\"),
                 )
             )
-        if chat_type is not None:
-            conditions.append(Chat.chat_type == chat_type)
+        if chat_types:
+            conditions.append(Chat.chat_type.in_(list(chat_types)))
         if saved_only:
             conditions.append(Chat.is_saved.is_(True))
+        if accessible_only:
+            conditions.append(Chat.is_accessible.is_(True))
         return conditions
 
     async def search(
         self,
         query: str | None = None,
         *,
-        chat_type: ChatType | None = None,
+        chat_types: Sequence[ChatType] | None = None,
         saved_only: bool = False,
+        accessible_only: bool = False,
         limit: int = 20,
         offset: int = 0,
     ) -> list[Chat]:
@@ -113,8 +140,8 @@ class ChatRepository:
         offset = max(0, offset)
         statement = (
             select(Chat)
-            .where(*self._filters(query, chat_type, saved_only))
-            .order_by(func.lower(Chat.title), Chat.id)
+            .where(*self._filters(query, chat_types, saved_only, accessible_only))
+            .order_by(Chat.is_saved.desc(), func.lower(Chat.title), Chat.id)
             .limit(limit)
             .offset(offset)
         )
@@ -124,12 +151,13 @@ class ChatRepository:
         self,
         query: str | None = None,
         *,
-        chat_type: ChatType | None = None,
+        chat_types: Sequence[ChatType] | None = None,
         saved_only: bool = False,
+        accessible_only: bool = False,
     ) -> int:
         statement = (
             select(func.count())
             .select_from(Chat)
-            .where(*self._filters(query, chat_type, saved_only))
+            .where(*self._filters(query, chat_types, saved_only, accessible_only))
         )
         return int(await self._session.scalar(statement) or 0)

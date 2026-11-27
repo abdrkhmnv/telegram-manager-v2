@@ -1,7 +1,7 @@
-"""Ilovani yig'ish: sozlamalar -> log -> komponentlar -> lifecycle.
+"""Ilovani yig'ish: sozlamalar -> log -> servislar -> komponentlar -> lifecycle.
 
-Komponentlar tartibi: baza -> userbot -> Control Bot -> heartbeat.
-To'xtatish teskari tartibda.
+Komponentlar tartibi: baza -> userbot -> forwarder -> rejalashtiruvchi -> Control Bot -> heartbeat.
+To'xtatish teskari tartibda (avval panel, oxirida baza).
 """
 
 from __future__ import annotations
@@ -9,16 +9,25 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from app.config import AppSettings, DatabaseSettings, TelegramSettings
 from app.health import HEALTH_FILENAME, HeartbeatComponent
 from app.lifecycle import Component, LifecycleManager, install_signal_handlers
+from bot.context import Services
 from bot.storage import PostgresStorage
 from core.control_bot import ControlBotComponent
 from core.exceptions import MigrationOutOfDateError
 from core.userbot import UserbotComponent
 from database.connection import Database
 from database.migration_check import MigrationStatus, get_migration_status
+from services.autopost_service import AutopostService
+from services.chat_service import ChatService
+from services.forwarding_service import ForwarderComponent, ForwardRuleService
+from services.media_service import MediaService
+from services.message_service import MessageService
+from services.scheduling_service import SchedulerComponent
+from services.statistics_service import StatisticsService
 from services.status_service import StatusService
 from utils.logger import get_logger, setup_logging
 
@@ -57,6 +66,7 @@ def ensure_migrations_current(status: MigrationStatus) -> None:
 class Application:
     settings: AppSettings
     database: Database
+    services: Services
     lifecycle: LifecycleManager
 
 
@@ -78,31 +88,60 @@ def build_application(
     db_settings: DatabaseSettings,
     telegram_settings: TelegramSettings,
 ) -> Application:
+    tz = app_settings.tz
     database = Database(db_settings)
     userbot = UserbotComponent(telegram_settings)
-    status_service = StatusService(database, userbot.status)
-    control_bot = ControlBotComponent(
-        telegram_settings,
-        storage=PostgresStorage(database),
-        status_service=status_service,
-        timezone=app_settings.tz,
+
+    def client() -> Any:
+        return userbot.client
+
+    media = MediaService(database, app_settings.storage_dir, app_settings.max_upload_size_bytes)
+    removed = media.cleanup_temporary()
+    if removed:
+        logger.info("Vaqtinchalik fayllar tozalandi", extra={"count": removed})
+
+    forwarder = ForwarderComponent(database, client)
+    scheduler = SchedulerComponent(database, client, media, tz)
+    status = StatusService(database, userbot.status)
+    services = Services(
+        status=status,
+        chats=ChatService(database, client),
+        messages=MessageService(database, client, media),
+        media=media,
+        rules=ForwardRuleService(database),
+        autopost=AutopostService(database, tz),
+        stats=StatisticsService(database, tz),
+        timezone=tz,
     )
+    services.rules.on_change(forwarder.reload)
+    control_bot = ControlBotComponent(
+        telegram_settings, storage=PostgresStorage(database), services=services
+    )
+    status.add_component("forwarder", lambda: forwarder.is_running)
+    status.add_component("scheduler", lambda: scheduler.is_running)
+    status.add_component("control_bot", lambda: control_bot.is_running)
+
     heartbeat = HeartbeatComponent(
         health_file(app_settings),
         {
             "userbot": lambda: userbot.status().connected,
+            "forwarder": lambda: forwarder.is_running,
+            "scheduler": lambda: scheduler.is_running,
             "control_bot": lambda: control_bot.is_running,
         },
     )
     components: list[Component] = [
         DatabaseComponent(database),
         userbot,
+        forwarder,
+        scheduler,
         control_bot,
         heartbeat,
     ]
     return Application(
         settings=app_settings,
         database=database,
+        services=services,
         lifecycle=LifecycleManager(components),
     )
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -13,7 +13,7 @@ from database.connection import Database
 from database.migration_check import get_migration_status
 from utils.time_utils import utc_now
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "1.0.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +25,7 @@ class SystemStatus:
     migrations_current: bool
     migration_revision: str | None
     userbot: UserbotStatus
+    components: dict[str, bool] = field(default_factory=dict)
 
     @property
     def uptime_seconds(self) -> int:
@@ -37,10 +38,15 @@ class StatusService:
         database: Database,
         userbot_status: Callable[[], UserbotStatus],
         started_at: datetime | None = None,
+        components: Mapping[str, Callable[[], bool]] | None = None,
     ) -> None:
         self._database = database
         self._userbot_status = userbot_status
         self._started_at = started_at or utc_now()
+        self._components = dict(components or {})
+
+    def add_component(self, name: str, probe: Callable[[], bool]) -> None:
+        self._components[name] = probe
 
     async def collect(self) -> SystemStatus:
         database_ok = True
@@ -61,4 +67,5 @@ class StatusService:
             migrations_current=migrations_current,
             migration_revision=revision,
             userbot=self._userbot_status(),
+            components={name: bool(probe()) for name, probe in self._components.items()},
         )

@@ -23,7 +23,7 @@ from utils.logger import get_logger, register_secret
 
 logger = get_logger(__name__)
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "1.0.0"
 DEVICE_MODEL = "Telegram Manager v2"
 WATCHDOG_INTERVAL = 30.0
 RECONNECT_MAX_DELAY = 300.0
@@ -61,7 +61,7 @@ def secure_session_file(session_path: Path) -> None:
 
 def build_client(settings: TelegramSettings) -> TelegramClient:
     register_secret(settings.telegram_api_hash.get_secret_value())
-    return TelegramClient(
+    client = TelegramClient(
         str(settings.session_path),
         settings.telegram_api_id,
         settings.telegram_api_hash.get_secret_value(),
@@ -74,6 +74,9 @@ def build_client(settings: TelegramSettings) -> TelegramClient:
         flood_sleep_threshold=60,
         timeout=15,
     )
+    # message.text HTML ko'rinishida qaytadi — copy rejimida formatlash saqlanadi.
+    client.parse_mode = "html"
+    return client
 
 
 def _display_name(user: Any) -> str:

@@ -1,17 +1,34 @@
 from __future__ import annotations
 
+import random
+from collections.abc import Sequence
 from datetime import datetime, timedelta
+from typing import Any
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from database.models import AutopostKind, AutopostTask, PostStatus, ScheduledPost, TaskStatus
+from database.models import (
+    AutopostKind,
+    AutopostQueueItem,
+    AutopostTask,
+    Chat,
+    PostStatus,
+    PostTemplate,
+    PostTemplateMedia,
+    RunStatus,
+    ScheduledPost,
+    TaskLog,
+    TaskStatus,
+)
 from utils.helpers import truncate
 from utils.time_utils import ensure_utc
 
 _ERROR_LIMIT = 1000
 _MAX_WORKER_ID = 64
+_system_random = random.SystemRandom()
 
 
 class AutopostTaskRepository:
@@ -28,15 +45,43 @@ class AutopostTaskRepository:
     async def get(self, task_id: int) -> AutopostTask | None:
         return await self._session.get(AutopostTask, task_id)
 
-    async def set_status(self, task_id: int, status: TaskStatus) -> bool:
+    async def get_full(self, task_id: int) -> AutopostTask | None:
+        """Manzillar bilan birga (``lazy="raise"`` bo'lgani uchun aniq yuklanadi)."""
+        return await self._session.scalar(
+            select(AutopostTask)
+            .options(selectinload(AutopostTask.destinations))
+            .where(AutopostTask.id == task_id)
+        )
+
+    async def list_by_kind(self, kind: AutopostKind) -> list[AutopostTask]:
+        rows = await self._session.scalars(
+            select(AutopostTask)
+            .options(selectinload(AutopostTask.destinations))
+            .where(AutopostTask.kind == kind)
+            .order_by(AutopostTask.id.desc())
+        )
+        return list(rows.all())
+
+    async def set_destinations(self, task: AutopostTask, chat_ids: Sequence[int]) -> None:
+        chats = await self._session.scalars(select(Chat).where(Chat.id.in_(list(chat_ids))))
+        task.destinations = list(chats.all())
+
+    async def set_status(self, task_id: int, status: TaskStatus, **values: Any) -> bool:
         """Holatni o'zgartiradi (pauza, davom ettirish, bekor qilish).
 
         Ijara bekor qilinmaydi: hozir bajarilayotgan ishchi o'z ishini tugatadi,
         lekin vazifa ``active`` bo'lmagani uchun keyingi safar egallanmaydi.
         """
         result = await self._session.execute(
-            update(AutopostTask).where(AutopostTask.id == task_id).values(status=status)
+            update(AutopostTask)
+            .where(AutopostTask.id == task_id)
+            .values(status=status, **values)
+            .execution_options(synchronize_session=False)
         )
+        return bool(getattr(result, "rowcount", 0))
+
+    async def delete(self, task_id: int) -> bool:
+        result = await self._session.execute(delete(AutopostTask).where(AutopostTask.id == task_id))
         return bool(getattr(result, "rowcount", 0))
 
     async def claim_due(
@@ -85,14 +130,16 @@ class AutopostTaskRepository:
         ran_at: datetime,
         succeeded: bool,
         status: TaskStatus | None = None,
+        retry_at: datetime | None = None,
     ) -> bool:
         """Ijarani bo'shatadi va keyingi bajarilish vaqtini yozadi.
 
-        Faqat ijara egasi bo'shata oladi; boshqa ishchi uchun ``False``.
+        ``retry_at`` berilsa, vazifa shu vaqtgacha qayta egallanmaydi (``next_run_at``
+        o'zgarmagan holda — ya'ni xuddi shu slot qayta uriniladi). Faqat ijara egasi bo'shata oladi.
         """
         values: dict[str, object] = {
             "locked_by": None,
-            "locked_until": None,
+            "locked_until": ensure_utc(retry_at) if retry_at else None,
             "next_run_at": ensure_utc(next_run_at) if next_run_at else None,
             "last_run_at": ensure_utc(ran_at),
             "consecutive_failures": 0 if succeeded else AutopostTask.consecutive_failures + 1,
@@ -103,8 +150,78 @@ class AutopostTaskRepository:
             update(AutopostTask)
             .where(AutopostTask.id == task_id, AutopostTask.locked_by == worker_id)
             .values(**values)
+            .execution_options(synchronize_session=False)
         )
         return bool(getattr(result, "rowcount", 0))
+
+    # ------------------------------------------------------------ content queue
+    async def add_queue_item(self, task_id: int, template_id: int) -> AutopostQueueItem:
+        item = AutopostQueueItem(task_id=task_id, template_id=template_id)
+        self._session.add(item)
+        await self._session.flush()
+        return item
+
+    async def queue_items(self, task_id: int) -> list[AutopostQueueItem]:
+        rows = await self._session.scalars(
+            select(AutopostQueueItem)
+            .where(AutopostQueueItem.task_id == task_id)
+            .order_by(AutopostQueueItem.id)
+        )
+        return list(rows.all())
+
+    async def pick_queue_item(
+        self, task_id: int, rng: random.Random | None = None
+    ) -> AutopostQueueItem | None:
+        """Eng kam yuborilgan elementlar orasidan tasodifiy tanlaydi.
+
+        Bir nechta element bo'lsa, oxirgi yuborilgani ketma-ket qaytarilmaydi.
+        """
+        items = await self.queue_items(task_id)
+        if not items:
+            return None
+        lowest = min(item.times_posted for item in items)
+        candidates = [item for item in items if item.times_posted == lowest]
+        if len(items) > 1:
+            posted = [i for i in items if i.last_posted_at is not None]
+            last = max(posted, key=lambda i: ensure_utc(i.last_posted_at)) if posted else None  # type: ignore[arg-type]
+            filtered = [i for i in candidates if last is None or i.id != last.id]
+            if filtered:
+                candidates = filtered
+            elif last is not None:
+                candidates = [i for i in items if i.id != last.id]
+        return (rng or _system_random).choice(candidates)
+
+    async def mark_item_posted(self, item_id: int, at: datetime) -> None:
+        await self._session.execute(
+            update(AutopostQueueItem)
+            .where(AutopostQueueItem.id == item_id)
+            .values(times_posted=AutopostQueueItem.times_posted + 1, last_posted_at=ensure_utc(at))
+            .execution_options(synchronize_session=False)
+        )
+
+    async def template(self, template_id: int) -> PostTemplate | None:
+        return await self._session.scalar(
+            select(PostTemplate)
+            .options(selectinload(PostTemplate.media_items).selectinload(PostTemplateMedia.media))
+            .where(PostTemplate.id == template_id)
+        )
+
+    async def stats(self, task_id: int) -> dict[PostStatus, int]:
+        rows = await self._session.execute(
+            select(ScheduledPost.status, func.count())
+            .where(ScheduledPost.task_id == task_id)
+            .group_by(ScheduledPost.status)
+        )
+        return {status: int(count) for status, count in rows.all()}
+
+    async def recent_posts(self, task_id: int, limit: int = 10) -> list[ScheduledPost]:
+        rows = await self._session.scalars(
+            select(ScheduledPost)
+            .where(ScheduledPost.task_id == task_id)
+            .order_by(ScheduledPost.created_at.desc(), ScheduledPost.id.desc())
+            .limit(limit)
+        )
+        return list(rows.all())
 
 
 class ScheduledPostRepository:
@@ -139,6 +256,42 @@ class ScheduledPostRepository:
         )
         return await self._session.scalar(statement)
 
+    async def claim_occurrence(
+        self,
+        *,
+        task_id: int,
+        kind: AutopostKind,
+        template_id: int | None,
+        destination_chat_telegram_id: int,
+        scheduled_for: datetime,
+    ) -> int | None:
+        """Yuborilishi kerak bo'lgan yozuv ID'si; shu slot shu manzilga yuborilgan bo'lsa ``None``.
+
+        Avvalgi urinishda xato bo'lgan yozuv qayta qaytariladi (faqat muvaffaqiyatsizlar
+        qayta yuboriladi — muvaffaqiyatli manzillarga takror yuborilmaydi).
+        """
+        created = await self.create_occurrence(
+            task_id=task_id,
+            kind=kind,
+            template_id=template_id,
+            destination_chat_telegram_id=destination_chat_telegram_id,
+            scheduled_for=scheduled_for,
+        )
+        if created is not None:
+            return created
+        row = (
+            await self._session.execute(
+                select(ScheduledPost.id, ScheduledPost.status).where(
+                    ScheduledPost.task_id == task_id,
+                    ScheduledPost.destination_chat_telegram_id == destination_chat_telegram_id,
+                    ScheduledPost.scheduled_for == ensure_utc(scheduled_for),
+                )
+            )
+        ).first()
+        if row is None or row.status in (PostStatus.SENT, PostStatus.CANCELLED):
+            return None
+        return int(row.id)
+
     async def mark_sent(self, post_id: int, *, message_id: int | None, sent_at: datetime) -> None:
         await self._session.execute(
             update(ScheduledPost)
@@ -160,5 +313,36 @@ class ScheduledPostRepository:
                 status=PostStatus.FAILED,
                 attempts=ScheduledPost.attempts + 1,
                 error=truncate(error, _ERROR_LIMIT),
+            )
+        )
+
+
+class TaskLogRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def start(self, task_id: int | None, task_name: str) -> int:
+        entry = TaskLog(task_id=task_id, task_name=task_name[:100], status=RunStatus.STARTED)
+        self._session.add(entry)
+        await self._session.flush()
+        return entry.id
+
+    async def finish(
+        self,
+        log_id: int,
+        status: RunStatus,
+        *,
+        finished_at: datetime,
+        error: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        await self._session.execute(
+            update(TaskLog)
+            .where(TaskLog.id == log_id)
+            .values(
+                status=status,
+                finished_at=ensure_utc(finished_at),
+                error=truncate(error, _ERROR_LIMIT) if error else None,
+                details=details or {},
             )
         )

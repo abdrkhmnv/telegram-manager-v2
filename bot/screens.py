@@ -36,6 +36,13 @@ def coming_soon(section: Section) -> Screen:
     return Screen(texts.coming_soon(section), keyboards.back_home())
 
 
+COMPONENT_LABELS = {
+    "control_bot": "Control Bot",
+    "forwarder": "Forwarder",
+    "scheduler": "Rejalashtiruvchi (autopost)",
+}
+
+
 def _flag(ok: bool) -> str:
     return "✅" if ok else "❌"
 
@@ -67,6 +74,10 @@ def status_screen(status: SystemStatus, tz: ZoneInfo) -> Screen:
         f"{_flag(userbot.connected and userbot.authorized)} Userbot: {account}",
         f"{_flag(status.database_ok)} PostgreSQL",
         f"{_flag(status.migrations_current)} Migratsiya: {revision}",
+        *(
+            f"{_flag(ok)} {COMPONENT_LABELS.get(name, name)}"
+            for name, ok in status.components.items()
+        ),
         "",
         f"Versiya: {escape(status.version)}",
         f"Ishlamoqda: {_duration(status.uptime_seconds)}",

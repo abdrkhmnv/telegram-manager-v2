@@ -19,19 +19,8 @@ SECTION_TITLES: dict[Section, str] = {
     Section.HELP: "❓ Yordam",
 }
 
-# Bo'lim qaysi bosqichda ishga tushishi (yo'l xaritasi bo'yicha).
-PLANNED_PHASE: dict[Section, int] = {
-    Section.CHATS: 3,
-    Section.GROUPS: 3,
-    Section.CHANNELS: 3,
-    Section.SEARCH: 3,
-    Section.SEND: 4,
-    Section.FORWARDER: 5,
-    Section.AUTOPOST: 6,
-    Section.RANDOM_POST: 6,
-    Section.MEDIA: 7,
-    Section.STATS: 7,
-}
+# Barcha bo'limlar ishlaydi; bu lug'at kelajakda qo'shiladigan bo'limlar uchun.
+PLANNED_PHASE: dict[Section, int] = {}
 
 BACK = "⬅️ Orqaga"
 HOME = "🏠 Bosh menyu"
@@ -46,6 +35,15 @@ HELP = (
     "<b>❓ Yordam</b>\n\n"
     "Bu bot sizning shaxsiy Telegram akkauntingizni boshqarish paneli. "
     "Amallarni akkauntingiz bajaradi, bot esa faqat boshqaruv vositasi.\n\n"
+    "<b>Bo'limlar</b>\n"
+    "📤 Xabar yuborish — tanlangan chatlarga matn/media, oldindan ko'rish bilan\n"
+    "🔁 Forwarder — manbadan manzilga avtomatik yo'naltirish (native yoki copy)\n"
+    "📅 Autopost — bir martalik, kunlik, haftalik postlar\n"
+    "🎲 Random Autopost — belgilangan oraliqda navbatdan post\n"
+    "🖼 Media Manager — saqlangan fayllar\n"
+    "💬 👥 📢 — chatlar ro'yxati (avval 🔄 Yangilash)\n"
+    "📊 Statistika — bazadagi haqiqiy natijalar\n"
+    "⚙️ Sozlamalar — tizim holati, toifalar, xabarlar tarixi\n\n"
     "<b>Buyruqlar</b>\n"
     "/start — bosh menyu\n"
     "/help — shu yordam\n\n"
@@ -56,11 +54,7 @@ HELP = (
     "• Tizim Telegram cheklovlariga (FloodWait, anti-spam) to'liq rioya qiladi."
 )
 
-SETTINGS = (
-    "<b>⚙️ Sozlamalar</b>\n\n"
-    "Tizim holatini ko'rish uchun quyidagi tugmani bosing.\n"
-    "Boshqa sozlamalar keyingi bosqichlarda qo'shiladi."
-)
+SETTINGS = "<b>⚙️ Sozlamalar</b>\n\nKerakli bo'limni tanlang."
 
 EXPIRED_CALLBACK = "Bu tugma eskirgan. Bosh menyu qayta ochildi."
 BUSY = "⏳ Oldingi amal bajarilmoqda, biroz kuting."
