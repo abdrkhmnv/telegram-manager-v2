@@ -23,13 +23,7 @@ from sqlalchemy.schema import CreateTable  # noqa: E402
 import database.models as models  # noqa: E402
 from database.base import Base  # noqa: E402
 
-MIGRATION = (
-    Path(__file__).resolve().parents[2]
-    / "database"
-    / "migrations"
-    / "versions"
-    / "0001_initial_schema.py"
-)
+VERSIONS_DIR = Path(__file__).resolve().parents[2] / "database" / "migrations" / "versions"
 
 REQUIRED_TABLES = {
     "settings",
@@ -48,18 +42,19 @@ REQUIRED_TABLES = {
 
 
 def _migration_sql() -> str:
-    """Migratsiyani soxta ``alembic.op`` bilan yuklab, SQL matnini qaytaradi."""
+    """Barcha migratsiyalarni soxta ``alembic.op`` bilan yuklab, SQL matnini qaytaradi."""
     statements: list[str] = []
     fake_alembic = types.ModuleType("alembic")
     fake_alembic.op = types.SimpleNamespace(execute=statements.append)  # type: ignore[attr-defined]
     saved = sys.modules.get("alembic")
     sys.modules["alembic"] = fake_alembic
     try:
-        spec = importlib.util.spec_from_file_location("_mig_0001", MIGRATION)
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        module.upgrade()
+        for path in sorted(VERSIONS_DIR.glob("[0-9]*.py")):
+            spec = importlib.util.spec_from_file_location(f"_mig_{path.stem}", path)
+            assert spec is not None and spec.loader is not None
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            module.upgrade()
     finally:
         if saved is not None:
             sys.modules["alembic"] = saved

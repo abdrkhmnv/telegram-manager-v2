@@ -47,7 +47,33 @@ tushiradi va teskari tartibda to'xtatadi:
 1. `DatabaseComponent` — ulanishni eksponensial backoff bilan kutadi (10 urinishgacha),
    so'ng sxema oxirgi migratsiyada ekanini tekshiradi. Eskirgan bo'lsa ilova
    ishga tushmaydi va `alembic upgrade head` ni bajarishni so'raydi.
-2. *(2-bosqich)* `UserbotComponent`, `ControlBotComponent`, `SchedulerComponent`.
+2. `UserbotComponent` (`core/userbot.py`) — Telethon klienti. Sessiya katalogi `700`,
+   fayl `600`. Avtorizatsiya yo'q bo'lsa `python main.py login` ni so'rab to'xtaydi.
+   Telethon'ning o'z qayta ulanishiga qo'shimcha watchdog: ulanish yo'qolsa backoff
+   (30 s → 5 daqiqagacha) bilan qayta ulanadi.
+3. `ControlBotComponent` (`core/control_bot.py`) — aiogram 3. Ishga tushishda tokenni
+   `getMe` bilan tekshiradi, buyruqlarni faqat egasi chatiga o'rnatadi va polling'ni
+   alohida task'da boshlaydi (tarmoq xatolarida aiogram o'zi backoff qiladi).
+4. `HeartbeatComponent` (`app/health.py`) — har 30 soniyada `storage/health.json` ga
+   komponentlar holatini yozadi; `main.py check --app` (Docker healthcheck) uni o'qiydi.
+5. *(6-bosqich)* `SchedulerComponent` — lease asosidagi rejalashtiruvchi.
+
+## Control Bot ichki tuzilishi
+
+```
+Update ─► UserContextMiddleware (aiogram) ─► OwnerOnlyMiddleware ─► routerlar
+                                               │ egasi emas / guruh → jim tashlanadi
+callback_query ─► CallbackGuardMiddleware ─► NavCallback.filter() ─► on_navigate
+                   │ double tap → e'tiborsiz     │ mos kelmasa → on_unknown_callback
+                   │ parallel → "kuting"         │   (eskirgan tugma → bosh menyu)
+```
+
+- `bot/callbacks.py` — `NavCallback` (`nav:<bo'lim>:<sahifa>`), har biri ≤ 64 bayt (testda tekshiriladi).
+- `bot/screens.py` — sof funksiyalar: `Screen(text, markup)`. Tarmoqsiz test qilinadi.
+- `bot/rendering.py` — panel xabari tahrirlanadi; "not modified" jim o'tkaziladi,
+  tahrirlab bo'lmasa yangi xabar yuboriladi.
+- `bot/storage.py` — `PostgresStorage`: FSM holati `bot_fsm_states` jadvalida.
+- Bog'liqliklar (`status_service`, `timezone`) dispatcher `workflow_data` orqali beriladi.
 
 Biror komponent ishga tushmasa, oldin ishga tushganlari to'xtatiladi. SIGINT/SIGTERM
 kelganda barcha komponentlar `stop_timeout` (30 s) ichida to'xtatiladi; osilib qolgan

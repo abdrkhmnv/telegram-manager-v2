@@ -8,7 +8,7 @@
 | `BOT_TOKEN` | Boshqa odam botni boshqaradi | `.env` (`600`), loglarda yashiriladi |
 | `TELEGRAM_API_HASH` | Ilova nomidan so'rovlar | `.env`, `SecretStr`, loglarda yashiriladi |
 | `DATABASE_URL` paroli | Bazaga kirish | `.env`, `SecretStr`, loglarda yashiriladi, port tashqariga ochilmaydi |
-| Boshqaruv paneli | Begona odam buyruq beradi | *(2-bosqich)* har bir xabar va callback'da `OWNER_TELEGRAM_ID` tekshiruvi |
+| Boshqaruv paneli | Begona odam buyruq beradi | Har bir update'da `OWNER_TELEGRAM_ID` tekshiruvi, faqat shaxsiy chat |
 
 ## Qoidalar
 
@@ -24,10 +24,17 @@
 6. **Fayl yo'llari:** `utils.validators.safe_storage_path` — mutlaq yo'llar, `..` va
    saqlash katalogidan tashqariga olib chiquvchi symlinklar rad etiladi.
 7. **Buyruq bajarish yo'q:** panel orqali ixtiyoriy shell buyrug'i bajarilmaydi.
-8. **Avtorizatsiya (2-bosqich):** callback ma'lumotiga hech qachon avtorizatsiya sifatida
-   ishonilmaydi; har bir update'da yuboruvchi ID'si `OWNER_TELEGRAM_ID` bilan solishtiriladi.
-   Xavfli amallar tasdiqlashni talab qiladi; takroriy callback bosilishi bir marta bajariladi.
-9. **Telegram qoidalariga rioya:** tizim FloodWait'ni hurmat qiladi, cheklovlar,
+8. **Avtorizatsiya:** `bot/middleware/owner.py` dispatcher darajasidagi outer middleware —
+   har qanday handler va filtrdan oldin, barcha update turlari uchun ishlaydi. Faqat
+   Telegram bergan yuboruvchi ID'si `OWNER_TELEGRAM_ID` bilan solishtiriladi; callback
+   ma'lumotiga hech qachon ishonilmaydi. Guruh/kanaldagi xabarlar egasidan bo'lsa ham
+   rad etiladi. Begonalarga hech qanday javob berilmaydi (bot borligini oshkor qilmaslik
+   uchun); urinishlar logga yoziladi (bir foydalanuvchi uchun daqiqada ko'pi bilan bir marta).
+   Takroriy tugma bosilishi e'tiborsiz qoldiriladi va bir foydalanuvchining callback'lari
+   ketma-ket bajariladi. Xavfli amallar uchun tasdiqlash keyingi bosqichlarda qo'shiladi.
+9. **Kirish ma'lumotlari:** `python main.py login` telefon, kod va 2FA parolini faqat
+   terminalda so'raydi; parol ekranda ko'rinmaydi; hech biri log yoki bazaga yozilmaydi.
+10. **Telegram qoidalariga rioya:** tizim FloodWait'ni hurmat qiladi, cheklovlar,
    anti-spam mexanizmlari, maxfiylik sozlamalari va himoyalangan kontentni chetlab
    o'tmaydi, notanish odamlarga so'ralmagan xabar yubormaydi. Tasodifiy interval —
    foydalanuvchi belgilagan oraliq, anti-spam'ni aylanib o'tish vositasi emas.

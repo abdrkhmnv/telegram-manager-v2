@@ -17,16 +17,18 @@ xavfsizlik tahlili → commit → hujjatlar → hisobot. Avval kichik, to'liq is
 - [x] GitHub Actions: ruff, mypy, alembic up/down/check, pytest (3.11–3.13), docker build
 - [x] Zaxira/tiklash skriptlari, o'zbekcha hujjatlar
 
-## 2-bosqich — Telegram yadrosi
+## 2-bosqich — Telegram yadrosi ✅
 
-- [ ] Telethon klienti: sessiya (`700`), qayta ulanish (eksponensial backoff), FloodWait
-- [ ] Birinchi kirish oqimi (telefon, kod, 2FA) — kodlar log'ga yozilmaydi
-- [ ] Control Bot (aiogram 3), `OWNER_TELEGRAM_ID` middleware — har bir update'da
-- [ ] `/start`, `/help`, bosh menyu (12 bo'lim), orqaga/bosh sahifa navigatsiyasi
-- [ ] Callback ma'lumotlari: 64 bayt chegarasi, eskirgan callback'larni xavfsiz qayta ishlash
-- [ ] Takroriy callback'dan himoya, xavfli amallar uchun tasdiqlash
-- [ ] Healthcheck'ga Telegram ulanish holati
-- [ ] `docs/USER_GUIDE.md` — panel bo'yicha qo'llanma
+- [x] Telethon klienti: sessiya (`700`/`600`), qayta ulanish (watchdog + backoff), FloodWait
+- [x] Birinchi kirish oqimi `python main.py login` (telefon, kod, 2FA) — hech narsa loglanmaydi
+- [x] Control Bot (aiogram 3), `OWNER_TELEGRAM_ID` outer middleware — har bir update'da
+- [x] `/start`, `/help`, bosh menyu (12 bo'lim), orqaga/bosh sahifa navigatsiyasi
+- [x] Callback ma'lumotlari: 64 bayt chegarasi, eskirgan callback'larni xavfsiz qayta ishlash
+- [x] Takroriy callback'dan himoya, panel xabarini tahrirlash (chatni to'ldirmaslik)
+- [x] Bot FSM holati PostgreSQL'da (`bot_fsm_states`, `0002` migratsiyasi)
+- [x] Healthcheck: heartbeat fayli (`check --app`), "Tizim holati" ekrani
+- [x] `docs/USER_GUIDE.md` — panel bo'yicha qo'llanma
+- [ ] Xavfli amallar uchun tasdiqlash oynasi — birinchi xavfli amal bilan (4-bosqich)
 
 ## 3-bosqich — Chatlar
 

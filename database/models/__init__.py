@@ -6,6 +6,7 @@ from database.models.autopost import (
     ScheduledPost,
     autopost_task_destinations,
 )
+from database.models.bot_state import BotState
 from database.models.chats import Chat, ChatCategory, chat_category_links
 from database.models.enums import (
     AutopostKind,
@@ -36,6 +37,7 @@ __all__ = [
     "AutopostKind",
     "AutopostQueueItem",
     "AutopostTask",
+    "BotState",
     "Chat",
     "ChatCategory",
     "ChatType",

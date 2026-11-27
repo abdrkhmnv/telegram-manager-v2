@@ -22,7 +22,7 @@ RUN mkdir -p /app/storage/sessions /app/logs \
 
 USER app
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["python", "main.py", "check"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD ["python", "main.py", "check", "--app"]
 
 CMD ["python", "main.py", "run"]

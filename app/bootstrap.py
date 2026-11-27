@@ -1,19 +1,25 @@
 """Ilovani yig'ish: sozlamalar -> log -> komponentlar -> lifecycle.
 
-1-bosqichda faqat ma'lumotlar bazasi komponenti mavjud. 2-bosqichda
-Telethon userbot va Control Bot shu ro'yxatga qo'shiladi.
+Komponentlar tartibi: baza -> userbot -> Control Bot -> heartbeat.
+To'xtatish teskari tartibda.
 """
 
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path
 
-from app.config import AppSettings, DatabaseSettings
+from app.config import AppSettings, DatabaseSettings, TelegramSettings
+from app.health import HEALTH_FILENAME, HeartbeatComponent
 from app.lifecycle import Component, LifecycleManager, install_signal_handlers
+from bot.storage import PostgresStorage
+from core.control_bot import ControlBotComponent
 from core.exceptions import MigrationOutOfDateError
+from core.userbot import UserbotComponent
 from database.connection import Database
 from database.migration_check import MigrationStatus, get_migration_status
+from services.status_service import StatusService
 from utils.logger import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -63,9 +69,37 @@ def ensure_storage_dirs(settings: AppSettings) -> None:
     settings.storage_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
 
-def build_application(app_settings: AppSettings, db_settings: DatabaseSettings) -> Application:
+def health_file(settings: AppSettings) -> Path:
+    return settings.storage_dir / HEALTH_FILENAME
+
+
+def build_application(
+    app_settings: AppSettings,
+    db_settings: DatabaseSettings,
+    telegram_settings: TelegramSettings,
+) -> Application:
     database = Database(db_settings)
-    components: list[Component] = [DatabaseComponent(database)]
+    userbot = UserbotComponent(telegram_settings)
+    status_service = StatusService(database, userbot.status)
+    control_bot = ControlBotComponent(
+        telegram_settings,
+        storage=PostgresStorage(database),
+        status_service=status_service,
+        timezone=app_settings.tz,
+    )
+    heartbeat = HeartbeatComponent(
+        health_file(app_settings),
+        {
+            "userbot": lambda: userbot.status().connected,
+            "control_bot": lambda: control_bot.is_running,
+        },
+    )
+    components: list[Component] = [
+        DatabaseComponent(database),
+        userbot,
+        control_bot,
+        heartbeat,
+    ]
     return Application(
         settings=app_settings,
         database=database,

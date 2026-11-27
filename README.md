@@ -5,9 +5,9 @@ Haqiqiy amallarni (yuborish, forward, autopost) akkaunt Telethon (MTProto) orqal
 Control Bot esa faqat boshqaruv paneli vazifasini o'taydi. Panelga faqat
 `OWNER_TELEGRAM_ID` da ko'rsatilgan egasi kira oladi. Barcha interfeys o'zbek tilida (lotin).
 
-> **Holat:** 1-bosqich (Foundation) tayyor — konfiguratsiya, loglash, PostgreSQL,
-> modellar, migratsiyalar, vazifalarni atomik egallash infratuzilmasi, Docker va CI.
-> Telegram qismi (userbot va Control Bot) 2-bosqichda qo'shiladi.
+> **Holat:** 1-bosqich (Foundation) va 2-bosqich (Telegram yadrosi) tayyor: Telethon
+> userbot, Control Bot, egasi avtorizatsiyasi, o'zbekcha bosh menyu va tizim holati.
+> Chatlar, xabar yuborish, forwarder, autopost va boshqa bo'limlar keyingi bosqichlarda.
 > To'liq reja: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Imkoniyatlar
@@ -22,15 +22,20 @@ Control Bot esa faqat boshqaruv paneli vazifasini o'taydi. Panelga faqat
 | Idempotent forward/post yozuvlari (takroriy yuborishdan himoya) | ✅ tayyor |
 | Asia/Tashkent vaqt hisoblari (kunlik, haftalik, tasodifiy interval) | ✅ tayyor |
 | Docker, Docker Compose, GitHub Actions CI | ✅ tayyor |
-| Telethon userbot, Control Bot, egasi avtorizatsiyasi, bosh menyu | ⏳ 2-bosqich |
+| Telethon userbot: sessiya (600/700), qayta ulanish, FloodWait | ✅ tayyor |
+| Control Bot: egasi tekshiruvi, bosh menyu, /start, /help, tizim holati | ✅ tayyor |
+| Takroriy tugma bosishdan himoya, eskirgan tugmalarni xavfsiz qayta ishlash | ✅ tayyor |
+| Bot holatini (FSM) PostgreSQL'da saqlash | ✅ tayyor |
 | Chatlar, xabar yuborish, forwarder, autopost, media, statistika | ⏳ 3–7-bosqichlar |
 
 ## Arxitektura (qisqacha)
 
 ```
-main.py            -> buyruqlar: run | check
-app/               -> config, bootstrap, lifecycle (komponentlarni boshqarish)
-core/              -> ilova istisnolari (2-bosqichdan: userbot, control_bot)
+main.py            -> buyruqlar: run | login | check [--app]
+app/               -> config, bootstrap, lifecycle, permissions, health
+core/              -> userbot (Telethon), control_bot (aiogram), login, FloodWait
+bot/               -> panel: callbacks, klaviaturalar, ekranlar, handlerlar, middleware
+services/          -> servislar (tizim holati)
 database/          -> base, models, repositories, migrations, connection
 utils/             -> logger, time_utils, validators, helpers
 tests/unit         -> bazasiz testlar
@@ -52,12 +57,14 @@ git clone https://github.com/abdrkhmnv/telegram-manager-v2.git
 cd telegram-manager-v2
 cp .env.example .env && chmod 600 .env
 # .env ichida kamida POSTGRES_PASSWORD ni almashtiring (CHANGE_ME qolmasin)
-docker compose up -d --build
-docker compose ps                       # app "healthy" bo'lishi kerak
-docker compose exec app python main.py check
+# .env ichida Telegram kalitlarini ham to'ldiring (pastdagi bo'limga qarang)
+docker compose up -d db migrate                       # baza va migratsiya
+docker compose run --rm app python main.py login      # BIR MARTA: Telegram'ga kirish
+docker compose up -d --build                          # ilovani ishga tushirish
+docker compose ps                                     # app "healthy" bo'lishi kerak
 ```
 
-`migrate` xizmati `alembic upgrade head` ni avtomatik bajaradi, keyin `app` ishga tushadi.
+So'ng Telegram'da botingizga `/start` yozing — bosh menyu ochiladi.
 
 ## Mahalliy o'rnatish (Docker'siz)
 
@@ -67,6 +74,7 @@ pip install -r requirements-dev.txt
 cp .env.example .env && chmod 600 .env   # DATABASE_URL ni to'ldiring
 alembic upgrade head                     # jadvallarni yaratish
 python main.py check                     # PostgreSQL: OK / Migratsiyalar: OK
+python main.py login                     # BIR MARTA: telefon, kod, 2FA
 python main.py run                       # Ctrl+C bilan to'xtatiladi
 ```
 
@@ -84,23 +92,35 @@ Termux va VPS bo'yicha batafsil qo'llanma: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.
 | `LOG_DIR` | yo'q | `logs` | Bo'sh = faqat konsol |
 | `TIMEZONE` | yo'q | `Asia/Tashkent` | Interfeys vaqt zonasi (bazada doim UTC) |
 | `STORAGE_DIR` | yo'q | `storage` | Media va sessiyalar katalogi |
-| `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | 2-bosqichdan | — | https://my.telegram.org |
-| `BOT_TOKEN` | 2-bosqichdan | — | @BotFather |
-| `OWNER_TELEGRAM_ID` | 2-bosqichdan | — | Panel egasining raqamli ID'si |
+| `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | `run`/`login` uchun | — | https://my.telegram.org |
+| `BOT_TOKEN` | `run` uchun | — | @BotFather |
+| `OWNER_TELEGRAM_ID` | `run` uchun | — | Panel egasining raqamli ID'si |
 | `SESSION_DIR`, `SESSION_NAME` | yo'q | `storage/sessions`, `userbot` | Telethon sessiyasi |
 
 Konfiguratsiya xatosida ilova `2` kodi bilan chiqadi va qaysi maydon noto'g'ri ekanini
 yozadi — qiymatning o'zini (parol, token) hech qachon chiqarmaydi.
 
-## Telegram API sozlash (2-bosqich uchun tayyorgarlik)
+## Telegram API sozlash
 
 1. https://my.telegram.org → *API development tools* → ilova yarating →
    `api_id` va `api_hash` ni `.env` ga yozing.
 2. @BotFather → `/newbot` → tokenni `BOT_TOKEN` ga yozing.
 3. O'z ID raqamingizni bilish uchun @userinfobot ga yozing → `OWNER_TELEGRAM_ID`.
+4. Yangi botingizga Telegram'da bir marta `/start` yozing (bot sizga javob bera olishi uchun).
 
-Birinchi kirish (telefon raqami va kod bilan Telethon sessiyasini yaratish) 2-bosqichda
-qo'shiladi va shu yerda hujjatlashtiriladi.
+## Birinchi kirish
+
+```bash
+python main.py login
+# Telefon raqam (+998...): ...
+# Telegram yuborgan kod: ...
+# Ikki bosqichli tekshiruv paroli: ...   (yoqilgan bo'lsa; ekranda ko'rinmaydi)
+```
+
+Sessiya `storage/sessions/userbot.session` ga `600` ruxsat bilan saqlanadi. Telefon, kod
+va parol hech qayerga yozilmaydi. Bu bir martalik amal — keyin `python main.py run` terminal
+savollarisiz ishlaydi. Sessiya bekor qilinsa, ilova ishga tushmaydi va `login` ni qayta
+bajarishni so'raydi.
 
 ## Testlar va sifat tekshiruvi
 
@@ -124,6 +144,9 @@ DATABASE_URL=$TEST_DATABASE_URL alembic check      # modellar == migratsiyalar
 | `Konfiguratsiya xatosi ... DATABASE_URL` | `.env` yo'q yoki URL `postgresql+asyncpg://` bilan boshlanmaydi |
 | `PostgreSQL'ga ulanib bo'lmadi` | Server ishlamayapti, host/port noto'g'ri yoki parol xato. `pg_isready` bilan tekshiring |
 | `Migratsiyalar: ESKIRGAN` | `alembic upgrade head` bajaring |
+| `Telegram akkaunti ulanmagan` | `python main.py login` (Docker: `docker compose run --rm app python main.py login`) |
+| `BOT_TOKEN noto'g'ri` | @BotFather'dan tokenni tekshiring yoki yangisini oling |
+| Bot javob bermayapti | `OWNER_TELEGRAM_ID` to'g'rimi? Bot faqat egasiga va faqat shaxsiy chatda javob beradi |
 | `app` konteyneri `unhealthy` | `docker compose logs app migrate` — odatda migratsiya yoki parol muammosi |
 | Termux'da `asyncpg` o'rnatilmaydi | `pkg install clang make` va qayta urining (DEPLOYMENT.md) |
 

@@ -12,7 +12,9 @@ sudo mkdir -p /opt/telegram-manager-v2 && sudo chown "$USER" /opt/telegram-manag
 git clone https://github.com/abdrkhmnv/telegram-manager-v2.git /opt/telegram-manager-v2
 cd /opt/telegram-manager-v2
 cp .env.example .env && chmod 600 .env
-nano .env        # POSTGRES_PASSWORD, APP_ENV=production va (2-bosqichdan) Telegram kalitlari
+nano .env        # POSTGRES_PASSWORD, APP_ENV=production, TELEGRAM_*, BOT_TOKEN, OWNER_TELEGRAM_ID
+docker compose up -d --build db migrate
+docker compose run --rm app python main.py login     # bir martalik, interaktiv
 docker compose up -d --build
 ```
 
@@ -59,6 +61,7 @@ sudo chown -R tgmanager:tgmanager /opt/telegram-manager-v2
 sudo chmod 600 .env
 sudo -u tgmanager .venv/bin/alembic upgrade head
 sudo -u tgmanager .venv/bin/python main.py check
+sudo -u tgmanager .venv/bin/python main.py login     # bir martalik, interaktiv
 ```
 
 `/etc/systemd/system/telegram-manager.service`:
@@ -116,6 +119,7 @@ cp .env.example .env && chmod 600 .env
 # .env: DATABASE_URL=postgresql+asyncpg://tgmanager:KUCHLI_PAROL@localhost:5432/tgmanager
 alembic upgrade head
 python main.py check
+python main.py login     # bir martalik
 python main.py run
 ```
 
@@ -132,8 +136,13 @@ Maslahatlar:
 
 `python main.py check` — konfiguratsiyani yuklaydi, PostgreSQL'ga ulanadi va sxema
 oxirgi migratsiyada ekanini tekshiradi. `0` = sog'lom, `1` = baza/migratsiya muammosi,
-`2` = konfiguratsiya xatosi. Docker `HEALTHCHECK` shu buyruqdan foydalanadi.
-2-bosqichda Telegram ulanishlari holati ham qo'shiladi.
+`2` = konfiguratsiya xatosi.
+
+`python main.py check --app` — qo'shimcha ravishda ishlayotgan ilovaning heartbeat
+faylini (`storage/health.json`, har 30 soniyada yangilanadi) tekshiradi: userbot ulangan
+va Control Bot polling ishlayotgan bo'lishi kerak, fayl 2 daqiqadan eski bo'lmasligi kerak.
+Docker `HEALTHCHECK` shu buyruqdan foydalanadi. Healthcheck alohida jarayon bo'lgani uchun
+Telethon sessiyasini ochmaydi.
 
 ## Loglar
 
